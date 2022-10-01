@@ -79,8 +79,9 @@ export function createList() {
   }
 
   // API calls are very expensive, so by batching all changes in `insertions` we avoid performance cliffs.
-  targetSheet.getRange(2, 1, insertions.length, 3).setValues(insertions);
-
+  if (insertions.length > 0) {
+    targetSheet.getRange(2, 1, insertions.length, 3).setValues(insertions);
+  }
   // Make sure the first column is big enough.
   targetSheet.autoResizeColumn(1);
 }
