@@ -112,19 +112,3 @@ export function createList() {
   // Make sure the first column is big enough.
   targetSheet.autoResizeColumn(1);
 }
-
-export function deleteInvalidLists() {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-
-  const sheetsNames = new Set(
-    spreadsheet.getSheets().map((sheet) => sheet.getName())
-  );
-  for (const name of sheetsNames) {
-    sheetsNames.delete(name + " - Liste");
-  }
-  for (const name of sheetsNames) {
-    if (name.endsWith(" - Liste")) {
-      spreadsheet.deleteSheet(spreadsheet.getSheetByName(name)!);
-    }
-  }
-}
