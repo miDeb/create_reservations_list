@@ -1,3 +1,8 @@
+type Sheet = GoogleAppsScript.Spreadsheet.Sheet;
+type Spreadsheet = GoogleAppsScript.Spreadsheet.Spreadsheet;
+
+const METADATA_SOURCE_KEY = "createList::sourceId";
+
 export function createList() {
   /// Pads numbers from 1 to 9 with a leading 0.
   function padIndex(number: number): string {
@@ -8,9 +13,42 @@ export function createList() {
     }
   }
 
-  const spreadSheet = SpreadsheetApp.getActiveSpreadsheet();
+  function getTargetSheet(spreadsheet: Spreadsheet, sourceSheet: Sheet): Sheet {
+    const sourceId = sourceSheet.getSheetId().toString();
 
-  const currentSheet = spreadSheet.getActiveSheet();
+    // Find list sheets by looking at their developer metadata. This
+    let target = spreadsheet
+      .createDeveloperMetadataFinder()
+      .withKey(METADATA_SOURCE_KEY)
+      .withValue(sourceId)
+      .find()[0]
+      ?.getLocation()
+      .getSheet();
+
+    const expectedTargetName = sourceSheet.getName() + " - Liste";
+
+    if (!target) {
+      target = spreadsheet.insertSheet(expectedTargetName);
+
+      target.addDeveloperMetadata(METADATA_SOURCE_KEY, sourceId);
+
+      // Differentiate list tabs by coloring them gray.
+      target.setTabColor("gray");
+      // Prevent focus switch to newly inserted sheet.
+      spreadsheet.setActiveSheet(sourceSheet);
+    } else {
+      target.clear();
+      if (target.getName() !== expectedTargetName) {
+        target.setName(expectedTargetName);
+      }
+    }
+
+    return target;
+  }
+
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+  const currentSheet = spreadsheet.getActiveSheet();
 
   const currentSheetName = currentSheet.getName();
 
@@ -19,18 +57,7 @@ export function createList() {
     return;
   }
 
-  const newSheetName = currentSheetName + " - Liste";
-  let targetSheet = spreadSheet.getSheetByName(newSheetName);
-  if (targetSheet) {
-    targetSheet.clear();
-  } else {
-    targetSheet = spreadSheet.insertSheet(newSheetName);
-    // Differentiate list tabs by coloring them gray.
-    targetSheet.setTabColor("gray");
-    // Prevent focus switch to newly inserted sheet.
-    spreadSheet.setActiveSheet(currentSheet);
-  }
-
+  const targetSheet = getTargetSheet(spreadsheet, currentSheet);
   targetSheet.getRange(1, 1).setValue("Alphabetische Liste der Besucher");
 
   const insertions: string[][] = [];
@@ -84,4 +111,20 @@ export function createList() {
   }
   // Make sure the first column is big enough.
   targetSheet.autoResizeColumn(1);
+}
+
+export function deleteInvalidLists() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+  const sheetsNames = new Set(
+    spreadsheet.getSheets().map((sheet) => sheet.getName())
+  );
+  for (const name of sheetsNames) {
+    sheetsNames.delete(name + " - Liste");
+  }
+  for (const name of sheetsNames) {
+    if (name.endsWith(" - Liste")) {
+      spreadsheet.deleteSheet(spreadsheet.getSheetByName(name)!);
+    }
+  }
 }
