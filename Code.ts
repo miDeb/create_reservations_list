@@ -4,6 +4,24 @@ type Spreadsheet = GoogleAppsScript.Spreadsheet.Spreadsheet;
 const METADATA_SOURCE_KEY = "createList::sourceId";
 const LIST_SHEET_SUFFIX = " - Liste";
 
+// Ranges to take into account for generating the table. All indices are inclusive.
+const RANGES = [
+  {
+    name: "Galerie",
+    rowFrom: 9,
+    rowTo: 11,
+    columnFrom: 23,
+    columnTo: 28,
+  },
+  {
+    name: null,
+    rowFrom: 9,
+    rowTo: 30,
+    columnFrom: 4,
+    columnTo: 18,
+  },
+];
+
 export function createList() {
   /// Pads numbers from 1 to 9 with a leading 0.
   function padIndex(number: number): string {
@@ -64,18 +82,26 @@ export function createList() {
 
   const insertions: string[][] = [];
 
-  for (let sourceRow = 9; sourceRow <= 30; sourceRow++) {
-    for (let sourceColumn = 4; sourceColumn <= 18; sourceColumn++) {
-      const sourceString = (
-        currentSheet.getRange(sourceRow, sourceColumn).getValue() as string
-      ).trim();
+  for (const range of RANGES) {
+    for (let sourceRow = range.rowFrom; sourceRow <= range.rowTo; sourceRow++) {
+      for (
+        let sourceColumn = range.columnFrom;
+        sourceColumn <= range.columnTo;
+        sourceColumn++
+      ) {
+        const sourceString = (
+          currentSheet.getRange(sourceRow, sourceColumn).getValue() as string
+        ).trim();
 
-      if (sourceString !== "") {
-        insertions.push([
-          sourceString,
-          `Reihe - ${padIndex(sourceRow - 8)}`,
-          `Nummer - ${sourceColumn - 3}`,
-        ]);
+        if (sourceString !== "") {
+          insertions.push([
+            sourceString,
+            // Insert the name of the range if given.
+            (range.name ? `${range.name} ` : "") +
+              `Reihe - ${padIndex(sourceRow - range.rowFrom + 1)}`,
+            `Nummer - ${sourceColumn - range.columnFrom + 1}`,
+          ]);
+        }
       }
     }
   }
@@ -86,24 +112,22 @@ export function createList() {
     a[0].toLowerCase().localeCompare(b[0].toLowerCase())
   );
 
-  // Add an incrementing index where multiple seats pertain to the same name:
+  // Handle reservations by the same name:
 
   let previousName: string | undefined;
   let previousNameCount = 0;
-  for (let i = 0; i < insertions.length; i++) {
-    const name: string = insertions[i][0];
-    let index: number | undefined;
+  // We intentionally go one past the last element.
+  for (let i = 0; i <= insertions.length; i++) {
+    const name: string | undefined = insertions[i]?.[0];
     if (name === previousName) {
-      // If we previously inserted this name, continue to insert the incremented index.
-      index = ++previousNameCount;
-    } else if (insertions[i + 1] && insertions[i + 1][0] === name) {
-      // If this name occurs first in this cell but also occurs in the next cell, start by inserting index 1.
-      previousName = name;
+      previousNameCount++;
+      insertions[i][0] = "";
+    } else {
+      if (previousNameCount !== 1 && previousName) {
+        insertions[i - previousNameCount][0] = `${previousName} (${previousNameCount})`;
+      }
       previousNameCount = 1;
-      index = 1;
-    }
-    if (index) {
-      insertions[i][0] = `${name} - ${index}`;
+      previousName = name;
     }
   }
 
@@ -111,6 +135,8 @@ export function createList() {
   if (insertions.length > 0) {
     targetSheet.getRange(2, 1, insertions.length, 3).setValues(insertions);
   }
-  // Make sure the first column is big enough.
+  // Make sure the first column is big enough to fit all names.
   targetSheet.autoResizeColumn(1);
+  // Assign a constant width to the second column
+  targetSheet.setColumnWidth(2, 127);
 }
