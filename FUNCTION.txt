@@ -1,0 +1,45 @@
+How are you supposed to version control an excel function??
+Lines starting with "//" are comments. Do not copy them into a document.
+
+// Determines whether a cell is available and should be highlighted in green.
+
+// Function arguments:
+// - left_header: The cell above the column containing the number of seats in a row
+// - right_header: The cell above the column containing the number of seats aligned to the right, as opposed to the remaining seats that are left-aligned.
+LAMBDA(left_header; LAMBDA(right_header;
+  ODER(
+    // Highlight a cell in green if the number of total seats - the number of right aligned seats >= the column of this seat
+    BEREICH.VERSCHIEBEN(
+              left_header;
+              ZEILE() - ZEILE(left_header);
+              0;
+            ) -
+            BEREICH.VERSCHIEBEN(
+              right_header;
+              ZEILE() - ZEILE(right_header);
+              0;
+            ) >=
+        SPALTE() - SPALTE(left_header);
+    // Highlight a cell in green if the column after the last seat - the number of right aligned seats <= the column of this seat
+    SPALTE(right_header) -
+            // We account for the special case where there are more right-aligned seats than total seats:
+            // In this case we reduce the number of right aligned seats to the number of total seats.
+            MIN(
+              BEREICH.VERSCHIEBEN(
+                left_header;
+                ZEILE() - ZEILE(left_header);
+                0;
+              );
+              BEREICH.VERSCHIEBEN(
+                right_header;
+                ZEILE() - ZEILE(right_header);
+                0;
+              );
+            ) <=
+        SPALTE();
+  );
+)
+)
+
+// Example invocation:
+($C$8)($S$8)
