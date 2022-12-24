@@ -22,6 +22,10 @@ const RANGES = [
   },
 ];
 
+const GRAY_TEXT = SpreadsheetApp.newTextStyle()
+  .setForegroundColor("gray")
+  .build();
+
 export function createList() {
   /// Pads numbers from 1 to 9 with a leading 0.
   function padIndex(number: number): string {
@@ -80,27 +84,81 @@ export function createList() {
   const targetSheet = getTargetSheet(spreadsheet, currentSheet);
   targetSheet.getRange(1, 1).setValue("Alphabetische Liste der Besucher");
 
-  const insertions: string[][] = [];
+  const insertions: GoogleAppsScript.Spreadsheet.RichTextValue[][] = [];
+
+  const names = new Map<string, number>();
 
   for (const range of RANGES) {
-    for (let sourceRow = range.rowFrom; sourceRow <= range.rowTo; sourceRow++) {
-      for (
-        let sourceColumn = range.columnFrom;
-        sourceColumn <= range.columnTo;
-        sourceColumn++
-      ) {
-        const sourceString = (
-          currentSheet.getRange(sourceRow, sourceColumn).getValue() as string
-        ).trim();
+    const rowCount = range.rowTo - range.rowFrom + 1;
+    const columnCount = range.columnTo - range.columnFrom + 1;
+    const values = currentSheet
+      .getRange(range.rowFrom, range.columnFrom, rowCount, columnCount)
+      .getValues();
+    for (let sourceRow = 0; sourceRow < rowCount; sourceRow++) {
+      let nameStartColumn = 0;
+      for (let sourceColumn = 0; sourceColumn < columnCount; sourceColumn++) {
+        const sourceString = values[sourceRow][sourceColumn] as string;
 
-        if (sourceString !== "") {
-          insertions.push([
-            sourceString,
-            // Insert the name of the range if given.
+        // Keep track of how many times a name occurs.
+        const nameCount = names.get(sourceString);
+        if (nameCount) {
+          names.set(sourceString, nameCount + 1);
+        } else {
+          names.set(sourceString, 1);
+        }
+
+        if (sourceString) {
+          // Insert the name of the range if given.
+          const rowText =
             (range.name ? `${range.name} ` : "") +
-              `Reihe - ${padIndex(sourceRow - range.rowFrom + 1)}`,
-            `Nummer - ${sourceColumn - range.columnFrom + 1}`,
+            `Reihe - ${padIndex(sourceRow + 1)}`;
+          const richRowText =
+            SpreadsheetApp.newRichTextValue().setText(rowText);
+          richRowText.setTextStyle(
+            range.name?.length ?? 0,
+            rowText.length - 2,
+            GRAY_TEXT
+          );
+
+          const columnText = `Nummer - ${sourceColumn + 1}`;
+          const richColumnText =
+            SpreadsheetApp.newRichTextValue().setText(columnText);
+          richColumnText.setTextStyle(0, 8, GRAY_TEXT);
+
+          insertions.push([
+            SpreadsheetApp.newRichTextValue().setText(sourceString).build(),
+            richRowText.build(),
+            richColumnText.build(),
           ]);
+        }
+
+        if (
+          sourceColumn + 1 === columnCount ||
+          values[sourceRow][sourceColumn + 1] !== sourceString
+        ) {
+          if (sourceString && sourceColumn - nameStartColumn > 0) {
+            insertions.splice(
+              insertions.length - sourceColumn + nameStartColumn
+            );
+
+            const richText = insertions[insertions.length - 1][2];
+            const builder = richText.copy();
+            builder
+              .setText(
+                richText.getText() +
+                  (sourceColumn === nameStartColumn + 1
+                    ? ` und ${sourceColumn + 1}`
+                    : ` bis ${sourceColumn + 1}`)
+              )
+              .setTextStyle(0, 8, GRAY_TEXT)
+              .setTextStyle(
+                richText.getText().length + 1,
+                richText.getText().length + 4,
+                GRAY_TEXT
+              );
+            insertions[insertions.length - 1][2] = builder.build();
+          }
+          nameStartColumn = sourceColumn + 1;
         }
       }
     }
@@ -109,34 +167,40 @@ export function createList() {
   // Sorting is stable, so seats with the same name will remain sorted according to their row and column
   // (as they were inserted by the nested loop above).
   insertions.sort((a, b) =>
-    a[0].toLowerCase().localeCompare(b[0].toLowerCase())
+    a[0].getText().toLowerCase().localeCompare(b[0].getText().toLowerCase())
   );
 
   // Handle reservations by the same name:
 
-  let previousName: string | undefined;
-  let previousNameCount = 0;
-  // We intentionally go one past the last element.
-  for (let i = 0; i <= insertions.length; i++) {
-    const name: string | undefined = insertions[i]?.[0];
-    if (name === previousName) {
-      previousNameCount++;
-      insertions[i][0] = "";
-    } else {
-      if (previousNameCount !== 1 && previousName) {
-        insertions[i - previousNameCount][0] = `${previousName} (${previousNameCount})`;
+  for (const entry of insertions) {
+    const name: string = entry[0].getText();
+    const count = names.get(name);
+    const richText = SpreadsheetApp.newRichTextValue();
+    if (count) {
+      if (count !== 1) {
+        const text = `${name} (${count})`;
+        richText.setText(text);
+        richText.setTextStyle(name.length, text.length, GRAY_TEXT);
+      } else {
+        richText.setText(name);
       }
-      previousNameCount = 1;
-      previousName = name;
+      names.delete(name);
+    } else {
+      richText.setText("");
     }
+    entry[0] = richText.build();
   }
 
   // API calls are very expensive, so by batching all changes in `insertions` we avoid performance cliffs.
+  // We cannot set an empty range (would throw).
   if (insertions.length > 0) {
-    targetSheet.getRange(2, 1, insertions.length, 3).setValues(insertions);
+    targetSheet
+      .getRange(2, 1, insertions.length, 3)
+      .setRichTextValues(insertions);
   }
   // Make sure the first column is big enough to fit all names.
   targetSheet.autoResizeColumn(1);
+  targetSheet.autoResizeColumn(3);
   // Assign a constant width to the second column
   targetSheet.setColumnWidth(2, 127);
 }
