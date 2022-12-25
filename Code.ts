@@ -1,3 +1,5 @@
+// Source code on GitHub: https://github.com/miDeb/create_reservations_list
+
 type Sheet = GoogleAppsScript.Spreadsheet.Sheet;
 type Spreadsheet = GoogleAppsScript.Spreadsheet.Spreadsheet;
 
@@ -26,7 +28,8 @@ const GRAY_TEXT = SpreadsheetApp.newTextStyle()
   .setForegroundColor("gray")
   .build();
 
-export function createList() {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function createList() {
   /// Pads numbers from 1 to 9 with a leading 0.
   function padIndex(number: number): string {
     if (number < 10) {
