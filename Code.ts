@@ -2,6 +2,7 @@
 
 type Sheet = GoogleAppsScript.Spreadsheet.Sheet;
 type Spreadsheet = GoogleAppsScript.Spreadsheet.Spreadsheet;
+type RichTextValue = GoogleAppsScript.Spreadsheet.RichTextValue;
 
 const METADATA_SOURCE_KEY = "createList::sourceId";
 const LIST_SHEET_SUFFIX = " - Liste";
@@ -87,7 +88,7 @@ function createList() {
   const targetSheet = getTargetSheet(spreadsheet, currentSheet);
   targetSheet.getRange(1, 1).setValue("Alphabetische Liste der Besucher");
 
-  const insertions: GoogleAppsScript.Spreadsheet.RichTextValue[][] = [];
+  const insertions: RichTextValue[][] = [];
 
   const names = new Map<string, number>();
 
