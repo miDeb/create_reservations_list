@@ -1,5 +1,5 @@
-How are you supposed to version control an excel function??
-Lines starting with "//" are comments. Do not copy them into a document.
+// Lines starting with "//" are comments. Do not copy them into the document, as that will cause errors.
+
 
 // Determines whether a cell is available and should be highlighted in green.
 
